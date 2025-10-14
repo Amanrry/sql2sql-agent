@@ -28,6 +28,9 @@ async def main():
     # 显示配置
     config.display()
 
+    # 启用LangSmith追踪（如果配置了）
+    config.enable_langsmith_tracing()
+
     # 验证配置
     if not config.validate():
         print("\n❌ 配置验证失败，请检查.env文件")
@@ -111,6 +114,9 @@ def interactive_mode():
     print("="*60)
 
     config.display()
+
+    # 启用LangSmith追踪（如果配置了）
+    config.enable_langsmith_tracing()
 
     if not config.validate():
         print("\n❌ 配置验证失败，请检查.env文件")

@@ -56,7 +56,8 @@ async def generate_extended_queries(
 
     try:
         response = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": prompt}]}
+            {"messages": [{"role": "user", "content": prompt}]},
+            config={"recursion_limit": config.AGENT_RECURSION_LIMIT}
         )
 
         final_message = response['messages'][-1].content
@@ -180,7 +181,8 @@ async def generate_final_report(
 
     try:
         response = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": prompt}]}
+            {"messages": [{"role": "user", "content": prompt}]},
+            config={"recursion_limit": config.AGENT_RECURSION_LIMIT}
         )
 
         final_message = response['messages'][-1].content

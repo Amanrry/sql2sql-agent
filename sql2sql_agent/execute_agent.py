@@ -47,8 +47,10 @@ async def execute_query(query: str, tools, max_retries: int = None) -> QueryResu
     try:
         print(f"\n🔍 执行查询: {query}")
 
+        # 设置recursion_limit以支持复杂查询（ReAct循环可能需要多次工具调用）
         response = await agent.ainvoke(
-            {"messages": [{"role": "user", "content": prompt}]}
+            {"messages": [{"role": "user", "content": prompt}]},
+            config={"recursion_limit": config.AGENT_RECURSION_LIMIT}
         )
 
         # 提取agent的最终回复
