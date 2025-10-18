@@ -9,22 +9,47 @@ from langgraph.graph import StateGraph, START, END
 from config import config
 from state import AgentState, create_initial_state
 from execute_agent import execute_query, execute_batch_queries
-from planning_agent import generate_extended_queries, should_continue, generate_final_report
+from planning_agent import (
+    understand_user_intent,
+    generate_and_score_queries,
+    generate_extended_queries,
+    should_continue,
+    generate_final_report
+)
 
 
 async def build_graph(tools):
     """
-    构建SQL-to-SQL多智能体系统的LangGraph
+    构建SQL-to-SQL多智能体系统的LangGraph（改进版）
 
     执行流程：
-    1. 初始化 → 2. 执行初始查询 → 3. 生成衍生查询
-    → 4. 执行衍生查询 → 5. 聚合结果 → 6. 检查完成
-    → 7a. 如未完成，返回步骤3
-    → 7b. 如已完成，生成最终报告
+    0. 理解用户意图（新增）→ 1. 执行初始查询 → 2. 生成并评分衍生查询（改进）
+    → 3. 执行衍生查询（并行） → 4. 检查完成（带新颖性和目标完成度检测）
+    → 5a. 如未完成，返回步骤2
+    → 5b. 如已完成，生成最终报告
+
+    改进点：
+    - 意图理解：提取用户核心目标、分析目的、关注领域
+    - 自适应评分：根据查询数量选择评分策略（嵌入向量/LLM）
+    - 智能停止：新颖性检测 + 目标完成度评估
+    - 优先执行：只执行Top-3最相关查询
     """
 
     # 创建状态图
     workflow = StateGraph(AgentState)
+
+    # 节点0: 理解用户意图（新增）
+    async def understand_intent_node(state: AgentState) -> dict:
+        """理解用户查询意图"""
+        print("\n" + "="*60)
+        print("📍 节点0: 理解用户意图")
+        print("="*60)
+
+        intent = await understand_user_intent(state["initial_query"], tools)
+
+        return {
+            "intent": intent
+        }
 
     # 节点1: 执行初始查询
     async def execute_initial_query_node(state: AgentState) -> dict:
@@ -40,14 +65,17 @@ async def build_graph(tools):
             "iteration": 1
         }
 
-    # 节点2: 生成衍生查询
+    # 节点2: 生成并评分衍生查询（改进）
     async def generate_extended_queries_node(state: AgentState) -> dict:
-        """生成衍生查询"""
+        """生成并评分衍生查询"""
         print("\n" + "="*60)
-        print(f"📍 节点2: 生成衍生查询 (迭代 {state['iteration']})")
+        print(f"📍 节点2: 生成并评分衍生查询 (迭代 {state['iteration']})")
         print("="*60)
 
-        queries = await generate_extended_queries(
+        # 使用新的评分函数
+        queries = await generate_and_score_queries(
+            state["initial_query"],
+            state["intent"],
             state["all_results"],
             state["iteration"],
             state["max_iterations"],
@@ -76,9 +104,9 @@ async def build_graph(tools):
             "pending_queries": []
         }
 
-    # 节点4: 聚合结果并检查是否完成
+    # 节点4: 聚合结果并检查是否完成（改进）
     async def check_completion_node(state: AgentState) -> dict:
-        """检查是否应该继续迭代"""
+        """检查是否应该继续迭代（带智能停止条件）"""
         print("\n" + "="*60)
         print("📍 节点4: 检查完成状态")
         print("="*60)
@@ -87,6 +115,7 @@ async def build_graph(tools):
             state["all_results"],
             state["iteration"],
             state["max_iterations"],
+            state["intent"],  # 新增：传入意图信息
             tools
         )
 
@@ -117,6 +146,7 @@ async def build_graph(tools):
         }
 
     # 添加节点
+    workflow.add_node("understand_intent", understand_intent_node)  # 新增
     workflow.add_node("execute_initial", execute_initial_query_node)
     workflow.add_node("generate_extended", generate_extended_queries_node)
     workflow.add_node("execute_extended", execute_extended_queries_node)
@@ -124,7 +154,8 @@ async def build_graph(tools):
     workflow.add_node("generate_report", generate_report_node)
 
     # 定义边
-    workflow.add_edge(START, "execute_initial")
+    workflow.add_edge(START, "understand_intent")  # 新增：首先理解意图
+    workflow.add_edge("understand_intent", "execute_initial")  # 新增
     workflow.add_edge("execute_initial", "generate_extended")
     workflow.add_edge("generate_extended", "execute_extended")
     workflow.add_edge("execute_extended", "check_completion")

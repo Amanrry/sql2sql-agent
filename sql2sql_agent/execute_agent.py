@@ -87,7 +87,13 @@ async def execute_query(query: str, tools, max_retries: int = None) -> QueryResu
 
         except (json.JSONDecodeError, ValueError, KeyError) as e:
             print(f"⚠️  解析JSON失败: {e}")
-            # 如果无法解析JSON，返回基于原始响应的结果
+
+            # 如果解析失败，让LLM重新生成正确的JSON格式
+            retry_result = await _retry_with_json_format(query, final_message, agent)
+            if retry_result:
+                return retry_result
+
+            # 如果重试也失败，返回基于原始响应的结果
             return QueryResult(
                 query=query,
                 sql="",
@@ -138,6 +144,85 @@ async def execute_batch_queries(queries: list[str], tools) -> list[QueryResult]:
             processed_results.append(result)
 
     return processed_results
+
+
+async def _retry_with_json_format(query: str, original_response: str, agent) -> QueryResult:
+    """
+    当JSON解析失败时，让LLM重新生成正确的JSON格式
+
+    Args:
+        query: 原始查询
+        original_response: 原始响应
+        agent: Execute Agent实例
+
+    Returns:
+        QueryResult: 重试后的结果，失败时返回None
+    """
+    try:
+        print("🔄 尝试重新生成JSON格式...")
+
+        retry_prompt = f"""The previous response did not follow the required JSON format. Please convert the following analysis into proper JSON format.
+
+**Original Query**: {query}
+
+**Previous Response**:
+{original_response}
+
+Please return the result in this exact JSON format:
+```json
+{{
+  "query": "{query}",
+  "sql": "SQL statement used (or empty string)",
+  "result": "The actual data result (can be list, dict, or summary)",
+  "insight": "Key insights and medical interpretation from the analysis",
+  "status": "success"
+}}
+```
+
+Important:
+- Make sure the JSON is valid and properly formatted
+- Include the key findings from your analysis
+- Keep the insight concise but informative
+- Return ONLY the JSON response
+"""
+
+        retry_response = await agent.ainvoke(
+            {"messages": [{"role": "user", "content": retry_prompt}]},
+            config={"recursion_limit": config.AGENT_RECURSION_LIMIT}
+        )
+
+        retry_message = retry_response['messages'][-1].content
+        print(f"📝 重试响应: {retry_message[:200]}...")
+
+        # 解析重试的JSON
+        if "```json" in retry_message:
+            json_start = retry_message.find("```json") + 7
+            json_end = retry_message.find("```", json_start)
+            json_str = retry_message[json_start:json_end].strip()
+        elif "{" in retry_message and "}" in retry_message:
+            json_start = retry_message.find("{")
+            json_end = retry_message.rfind("}") + 1
+            json_str = retry_message[json_start:json_end]
+        else:
+            print("❌ 重试响应仍无JSON格式")
+            return None
+
+        result_data = json.loads(json_str)
+
+        result = QueryResult(
+            query=result_data.get("query", query),
+            sql=result_data.get("sql", ""),
+            result=result_data.get("result"),
+            insight=result_data.get("insight", ""),
+            status=result_data.get("status", "success")
+        )
+
+        print("✅ JSON重试成功")
+        return result
+
+    except Exception as e:
+        print(f"❌ JSON重试失败: {e}")
+        return None
 
 
 if __name__ == "__main__":

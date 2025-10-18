@@ -27,6 +27,11 @@ class Config:
     LLM_MODEL: str = os.getenv("LLM_MODEL", "deepseek-ai/DeepSeek-V3.2-Exp")
     LLM_TEMPERATURE: float = float(os.getenv("LLM_TEMPERATURE", "0.1"))
 
+    # 嵌入模型配置
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    EMBEDDING_API_KEY: str = os.getenv("EMBEDDING_API_KEY", "")
+    EMBEDDING_API_BASE: str = os.getenv("EMBEDDING_API_BASE", "https://api.siliconflow.cn/v1")
+
     # Tavily搜索API配置
     TAVILY_API_KEY: str = os.getenv("TAVILY_API_KEY", "")
 
@@ -42,6 +47,16 @@ class Config:
     MAX_ITERATIONS: int = int(os.getenv("MAX_ITERATIONS", "3"))
     MAX_SQL_RETRIES: int = int(os.getenv("MAX_SQL_RETRIES", "5"))
     AGENT_RECURSION_LIMIT: int = int(os.getenv("AGENT_RECURSION_LIMIT", "100"))
+
+    # 查询评分配置
+    ADAPTIVE_SCORING_THRESHOLD: int = int(os.getenv("ADAPTIVE_SCORING_THRESHOLD", "5"))
+    SIMILARITY_THRESHOLD: float = float(os.getenv("SIMILARITY_THRESHOLD", "0.7"))
+
+    # 动态停止条件配置
+    NOVELTY_THRESHOLD: float = float(os.getenv("NOVELTY_THRESHOLD", "0.3"))
+
+    # 查询评分过滤配置
+    MIN_SCORE_THRESHOLD: float = float(os.getenv("MIN_SCORE_THRESHOLD", "0.1"))
 
     @classmethod
     def enable_langsmith_tracing(cls):
@@ -60,6 +75,9 @@ class Config:
 
         if not cls.OPENROUTER_API_KEY:
             errors.append("OPENROUTER_API_KEY未设置")
+
+        if not cls.EMBEDDING_API_KEY:
+            errors.append("EMBEDDING_API_KEY未设置")
 
         if not cls.TAVILY_API_KEY:
             errors.append("TAVILY_API_KEY未设置")
@@ -85,11 +103,17 @@ class Config:
         print("\n📋 当前配置:")
         print(f"  LLM模型: {cls.LLM_MODEL}")
         print(f"  温度: {cls.LLM_TEMPERATURE}")
+        print(f"  嵌入模型: {cls.EMBEDDING_MODEL}")
         print(f"  数据库路径: {cls.SQLITE_DB_PATH}")
         print(f"  最大迭代次数: {cls.MAX_ITERATIONS}")
         print(f"  SQL最大重试次数: {cls.MAX_SQL_RETRIES}")
         print(f"  Agent递归限制: {cls.AGENT_RECURSION_LIMIT}")
+        print(f"  自适应评分阈值: {cls.ADAPTIVE_SCORING_THRESHOLD}")
+        print(f"  相似度阈值: {cls.SIMILARITY_THRESHOLD}")
+        print(f"  新颖性阈值: {cls.NOVELTY_THRESHOLD}")
+        print(f"  最低评分阈值: {cls.MIN_SCORE_THRESHOLD}")
         print(f"  OpenRouter API Key: {'已设置' if cls.OPENROUTER_API_KEY else '未设置'}")
+        print(f"  Embedding API Key: {'已设置' if cls.EMBEDDING_API_KEY else '未设置'}")
         print(f"  Tavily API Key: {'已设置' if cls.TAVILY_API_KEY else '未设置'}")
         print(f"  LangSmith追踪: {'启用' if cls.LANGCHAIN_TRACING_V2.lower() == 'true' else '禁用'}")
         print()

@@ -7,6 +7,14 @@ from typing import Any, List, Literal, TypedDict, Annotated
 import operator
 
 
+class Intent(TypedDict):
+    """用户意图信息"""
+    goal: str                    # 核心目标
+    purpose: str                 # 分析目的
+    focus_areas: List[str]       # 关注领域
+    constraints: List[str]       # 约束条件
+
+
 class QueryResult(TypedDict):
     """单个查询的执行结果"""
     query: str              # 原始查询
@@ -20,6 +28,7 @@ class AgentState(TypedDict):
     """主系统状态"""
     # 输入
     initial_query: str                                      # 用户的初始查询
+    intent: Intent                                          # 用户意图信息
 
     # 迭代控制
     iteration: int                                          # 当前迭代次数
@@ -53,6 +62,7 @@ def create_initial_state(query: str, max_iterations: int = 3) -> AgentState:
     """创建初始状态"""
     return AgentState(
         initial_query=query,
+        intent=Intent(goal="", purpose="", focus_areas=[], constraints=[]),  # 初始为空，后续填充
         iteration=0,
         max_iterations=max_iterations,
         pending_queries=[],
